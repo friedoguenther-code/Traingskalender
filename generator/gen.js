@@ -23,6 +23,34 @@ const art = (titel) => {
   if (/Lauf/.test(t)) return 'lauf';
   return 'sonst';
 };
+// Plan B je Einheitstyp – 1:1 aus dem Dashboard (tfAltListe); plan:i = im Voraus gewählt, alt:i = so gemacht
+const PLANB = {
+  schwimmen: [['Zwift statt Schwimmen', '45 min Zone 2 auf Zwift, danach 15 min Rumpf: Unterarmstütz, Seitstütz, Superman.'], ['Schwimm-Kraft zu Hause + kurzer Lauf', 'Mit Theraband an der Türklinke: 3 × 3 min Kraulzüge im Stehen vorgebeugt (1 min Pause). Ohne Band: 3 × 12 Liegestütze, 3 × 15 Superman, 3 × 45 s Unterarmstütz. Danach 20 min lockerer Lauf.'], null],
+  zwift: [['Kurzversion 40 min', 'Gleiches Workout, nur die Hälfte der Intervalle. 10 min einfahren, 5 min ausfahren.'], ['Draußen am Anstieg', 'Die Intervalle an einem gleichmäßigen Anstieg fahren, Pausen bergab locker rollen.'], ['Laufen statt Rad', 'Kein Rad möglich: 15 min einlaufen, 5 × 3 min zügig (Zone 4), 2 min Trab, 10 min auslaufen.']],
+  lauf: [['Dunkel oder Regen: beleuchtete Runde', 'Gleiche Einheit auf einer beleuchteten Runde (Park, Wohngebiet) mit Stirnlampe und Reflektorweste. Bei Glätte lieber Zwift.'], ['Zwift statt Lauf', 'Bei Beschwerden in Wade, Knie oder Schienbein: 45 min Zone 2 auf Zwift mit 6 × 1 min hoher Kadenz.'], ['Kurzversion 30 min', '30 min locker in Zone 2 plus 4 Steigerungen. Die 15 min Kraft trotzdem machen.']],
+  langrad: [['Zwift kurz und knackig', 'Etwa 60 % der geplanten Dauer, darin 3 × 10 min Sweet Spot (88–92 % FTP). Gut, wenn die Zeit knapp ist.'], ['Unterwegs ohne eigenes Rad', 'Leihrad in gleicher Dauer locker. Geht das nicht: 60 min lockerer Lauf plus 15 min Kraft ohne Geräte.'], null],
+  langlauf: [['Aufteilen', 'Morgens zwei Drittel der Dauer, abends ein Drittel – beides in Zone 2.'], ['Runden vor der Haustür', 'Gleiche Dauer auf einer kurzen Runde (1–2 km) ums Haus – so kommst du jederzeit an Wasser und kannst bei Glätte abbrechen.'], ['Zwift bei Beschwerden', 'Gleiche Dauer in Zone 2 auf Zwift. Schont die Beine und hält die Ausdauer.']],
+  kraft: [['Mini-Version 10 min', '1 Runde: Kniebeugen, Ausfallschritte, Unterarmstütz.']],
+  sonst: [['Kurzversion', 'Die Hälfte der Dauer, ganz locker.']]
+};
+const dashArt = (titel) => {
+  const t = String(titel).replace(/^Nachholen: /, '');
+  if (/Ruhetag|frei|Anreise|Rückreise/.test(t)) return 'ruhe';
+  if (/RENNEN|Rennsimulation/.test(t)) return 'rennen';
+  if (/^Urlaub: Kraft/.test(t)) return 'kraft';
+  if (/Langes Rad|^Rad |Ostermontag/.test(t)) return 'langrad';
+  if (/Zwift|FTP/.test(t)) return 'zwift';
+  if (/Langer Lauf|Lauf locker 7/.test(t)) return 'langlauf';
+  if (/Schwimm|Freiwasser|CSS/.test(t)) return 'schwimmen';
+  if (/Lauf/.test(t)) return 'lauf';
+  return 'sonst';
+};
+const planB = (x) => {
+  const m = typeof x.m === 'string' ? x.m.match(/^(plan|alt):(\d+)$/) : null;
+  if (!m) return null;
+  const a = (PLANB[dashArt(x.titel)] || [])[Number(m[2])];
+  return a ? {art: m[1], titel: a[0], text: a[1]} : null;
+};
 const emoji = {rad: '🚴', schwimmen: '🏊', lauf: '🏃', kraft: '💪', rennen: '🏁', sonst: '🏋️'};
 const dauerMin = (titel) => {
   const t = String(titel);
@@ -84,17 +112,20 @@ for (let nr = 0; nr <= 28; nr++) {
   for (const x of tage) {
     const anreise = /Anreise nach Alghero/.test(x.titel);
     if (x.ruhe && !anreise) continue;
-    const a = art(x.titel);
+    const pb = planB(x);
+    const a = art(pb ? pb.titel : x.titel);
     const wochenende = x.t >= 5 || frei.has(x.datum);
     let status = '';
     if (x.geschafft) status = '✓ ';
     else if (x.weg) status = '✗ entfällt · ';
     else if (x.verpasst) status = '✗ ';
-    const titel = (anreise ? '✈️ ' : status + emoji[a] + ' ') + (x.neu ? '↻ ' : '') + x.titel;
+    const titel = (anreise ? '✈️ ' : status + emoji[a] + ' ') + (x.neu ? '↻ ' : '') + (pb ? 'Plan B: ' + pb.titel : x.titel);
     const teile = [];
+    if (pb) teile.push((pb.art === 'alt' ? 'Plan B gemacht' : 'Plan B geplant') + ' – statt: ' + x.titel);
     if (x.hinweis) teile.push(x.hinweis);
-    if (x.details && !x.weg) teile.push(x.details);
-    const zw = (a === 'rad' || a === 'rennen') && !x.neu ? zwift[x.datum] : null;
+    if (pb) teile.push(pb.text);
+    else if (x.details && !x.weg) teile.push(x.details);
+    const zw = (a === 'rad' || a === 'rennen') && !x.neu && !pb ? zwift[x.datum] : null;
     if (zw && !x.weg) teile.push('Zwift: Training → Custom Workouts → „' + zw + '“');
     if (x.strava) teile.push('Strava: ' + x.r.absolviert);
     teile.push('Abhaken und Plan B im Dashboard: ' + DASH);
@@ -103,7 +134,8 @@ for (let nr = 0; nr <= 28; nr++) {
       L.push('DTSTART;VALUE=DATE:' + x.datum.replace(/-/g, ''), 'DTEND;VALUE=DATE:' + new Date(Date.parse(x.datum + 'T00:00:00Z') + 864e5).toISOString().slice(0, 10).replace(/-/g, ''), 'TRANSP:TRANSPARENT');
     } else {
       const [hh, mm] = /RENNEN/.test(x.titel) ? [8, 0] : wochenende ? [11, 30] : [17, 30];
-      L.push('DTSTART;TZID=Europe/Berlin:' + zeit(x.datum, hh, mm), 'DTEND;TZID=Europe/Berlin:' + plusMin(x.datum, hh, mm, dauerMin(x.titel)));
+      const dauer = pb ? (/kurzer Lauf|Rumpf|Kurzversion 40/.test(pb.titel + pb.text) ? 45 : /Mini-Version/.test(pb.titel) ? 15 : dauerMin(x.titel)) : dauerMin(x.titel);
+      L.push('DTSTART;TZID=Europe/Berlin:' + zeit(x.datum, hh, mm), 'DTEND;TZID=Europe/Berlin:' + plusMin(x.datum, hh, mm, dauer));
       L.push(x.weg || x.geschafft ? 'TRANSP:TRANSPARENT' : 'TRANSP:OPAQUE');
     }
     L.push(falte('SUMMARY:' + esc(titel)), falte('DESCRIPTION:' + esc(teile.join('\n\n'))), falte('URL:' + DASH), 'CATEGORIES:Training');
