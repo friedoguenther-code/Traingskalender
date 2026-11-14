@@ -94,10 +94,14 @@ function tagesplan(aktivitaeten, heute) {
 const tfPlusTage = (s, n) => new Date(Date.parse(s + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 const tfTagName = (s) => ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(s + 'T00:00:00Z').getUTCDay()] + ' ' + s.slice(8, 10) + '.' + s.slice(5, 7) + '.';
 const tfPrio = [0, 4, 3, 5, 6, 1, 2];
-function wocheNeu(data, st, heute, nr) {
+function wocheNeu(data, st, heute, nr, anp) {
+  anp = anp || {};
+  // Individuelle Anpassungen wie im Dashboard: ersetzen die Einheit eines Tages, „nachholen“ markiert den ausgeglichenen Tag
+  const ersetzt = {};
+  Object.keys(anp).forEach((dt) => { if (anp[dt] && anp[dt].nachholen) ersetzt[anp[dt].nachholen] = tfTagName(dt); });
   const roh = (n) => data.filter((r) => r.nr === n);
-  const basis = (r, t) => { const ruhe = r.status === 'Ruhetag' || r.status === 'Bonus'; return {r, t, datum: r.datum, m: st[r.datum], strava: !!r.absolviert && r.absolviert !== '–', ruhe, prio: ruhe ? 0 : tfPrio[t], titel: r.geplant, details: r.details, hinweis: '', neu: false, weg: false}; };
-  const bewerte = (x) => { x.geschafft = x.m === 'ja' || (typeof x.m === 'string' && x.m.indexOf('alt:') === 0) || (x.m !== 'nein' && x.strava); x.verpasst = !x.ruhe && !x.geschafft && (x.datum < heute || x.m === 'nein'); return x; };
+  const basis = (r, t) => { const a = anp[r.datum]; const ruhe = !a && (r.status === 'Ruhetag' || r.status === 'Bonus'); return {r, t, datum: r.datum, m: st[r.datum], strava: !!r.absolviert && r.absolviert !== '–', ruhe, prio: a ? 1 : ruhe ? 0 : tfPrio[t], titel: a ? a.titel : r.geplant, details: a ? a.details : r.details, hinweis: a ? (a.hinweis || 'angepasst') : '', neu: !!a, weg: false, anp: a || null}; };
+  const bewerte = (x) => { x.geschafft = x.m === 'ja' || (typeof x.m === 'string' && x.m.indexOf('alt:') === 0) || (x.m !== 'nein' && x.strava); x.verpasst = !x.ruhe && !x.geschafft && (x.datum < heute || x.m === 'nein') && !ersetzt[x.datum]; if (!x.geschafft && ersetzt[x.datum]) { x.hinweis = '→ wird am ' + ersetzt[x.datum] + ' ausgeglichen'; x.weg = true; } return x; };
   const uebertrag = (n) => { if (n < 0 || n >= 28) return null; const mo = roh(n + 1)[0]; if (!mo || !(mo.status === 'Ruhetag' || mo.status === 'Bonus')) return null; const we = roh(n).map(basis).map(bewerte).filter((x) => x.t >= 5 && x.verpasst); we.sort((a, b) => a.prio - b.prio); return we[0] || null; };
   const tage = roh(nr).map(basis);
   if (tage.length !== 7) return null;

@@ -107,7 +107,7 @@ const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Claude//Triathlon Sardin
   'END:VTIMEZONE'];
 let anzahl = 0;
 for (let nr = 0; nr <= 28; nr++) {
-  const tage = wocheNeu(daten, st, heute, nr);
+  const tage = wocheNeu(daten, st, heute, nr, tracker.anpassung || {});
   if (!tage) continue;
   for (const x of tage) {
     const anreise = /Anreise nach Alghero/.test(x.titel);
@@ -125,7 +125,7 @@ for (let nr = 0; nr <= 28; nr++) {
     if (x.hinweis) teile.push(x.hinweis);
     if (pb) teile.push(pb.text);
     else if (x.details && !x.weg) teile.push(x.details);
-    const zw = (a === 'rad' || a === 'rennen') && !x.neu && !pb ? zwift[x.datum] : null;
+    const zw = x.anp && x.anp.zwift && !pb ? x.anp.zwift : (a === 'rad' || a === 'rennen') && !x.neu && !pb ? zwift[x.datum] : null;
     if (zw && !x.weg) teile.push('Zwift: Training → Custom Workouts → „' + zw + '“');
     if (x.strava) teile.push('Strava: ' + x.r.absolviert);
     teile.push('Abhaken und Plan B im Dashboard: ' + DASH);
